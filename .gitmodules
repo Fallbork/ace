@@ -1,0 +1,6 @@
+[submodule "addons/raylib"]
+	path = addons/raylib
+	url = https://github.com/raysan5/raylib
+[submodule "addons/zstd"]
+	path = addons/zstd
+	url = https://github.com/facebook/zstd
