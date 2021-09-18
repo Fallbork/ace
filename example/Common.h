@@ -5,9 +5,8 @@
 #include <AtlasComponent.h>
 
 /* Simply comment/uncomment this macro to switch between the C/C++ examples;
-   Note: Deco & Lsqueezer have different syntax in C than in C++.
+   Note: Deco & Lsqueezer have different syntaxes in C than in C++.
 */
-
 #define _EX_CPP
 
 // Utility macros
