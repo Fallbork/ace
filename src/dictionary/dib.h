@@ -13,6 +13,7 @@
 #pragma once
 
 #define ZDICT_STATIC_LINKING_ONLY
+#include <zdict.h>
 
 #define KB *(1 <<10)
 #define MB *(1 <<20)
