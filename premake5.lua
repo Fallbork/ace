@@ -54,7 +54,7 @@ project "deco"
 		filter{}
 		
 		language "C++"
-		targetdir "src/build/%{cfg.buildcfg}/%{cfg.platform}"
+		targetdir "build/%{cfg.buildcfg}/%{cfg.platform}"
 		cppdialect "C++17"
 		
 		files { "src/**.h", "src/**.c", "src/**.cpp", "addons/zstd/lib/**.h", "addons/zstd/lib/**.c",
@@ -91,7 +91,7 @@ project "example-app"
 		defines{ "_WINSOCK_DEPRECATED_NO_WARNINGS", "_CRT_SECURE_NO_WARNINGS", "_WIN32" }
 		dependson { "raylib", "deco" }
 		links { "raylib.lib", "winmm", "kernel32", "deco.lib" }
-		libdirs { "addons/raylib/build/%{cfg.buildcfg}/%{cfg.platform}", "src/build/%{cfg.buildcfg}/%{cfg.platform}" }
+		libdirs { "addons/raylib/build/%{cfg.buildcfg}/%{cfg.platform}", "build/%{cfg.buildcfg}/%{cfg.platform}" }
 
 	filter "action:gmake*"
 		links { "pthread", "GL", "m", "dl", "rt", "X11" }		
