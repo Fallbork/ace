@@ -45,7 +45,7 @@ int main() {
 	AtlasComponent test; // Optional
 
 	{
-		const char* tags[] = { "a", "b", "c", "d", "test" }; // Tags/Content ids
+		const char* tags[] = { "d", "a", "c", "test", "b" }; // Tags/Content ids (out of order for testing)
 		lsqueezer squeezer(EX_ATLAS_W, EX_ATLAS_H, true);	 // Atlas size & Verbosity
 
 		// Generate the atlas image

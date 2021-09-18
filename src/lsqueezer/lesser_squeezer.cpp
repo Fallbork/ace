@@ -45,14 +45,16 @@ Image lsqueezer::CreateBinFromEntries(deco_buffer& entries) {
 	for (char i = 0; i < 5; i++) {
 		// TODO: Move to Guilloutine Packer.
 		rbp::MaxRectsBinPack pack(bin_width_, bin_height_, false);
-		std::vector<rbp::RectSize> temp_dimensions(dimensions);
 		std::vector<rbp::Rect> out;
 
 		double occupancy = 0;
 		if (verbose_) { printf("LSQUEEZER: Calculating occupancy using method #%d\n", i); }
-		pack.Insert(temp_dimensions, out, (rbp::MaxRectsBinPack::FreeRectChoiceHeuristic)i);
+		for (size_t i = 0; i < dimensions.size(); i++) {
+			rbp::RectSize& rs = dimensions[i];
+			out.push_back(pack.Insert(rs.width, rs.height, (rbp::MaxRectsBinPack::FreeRectChoiceHeuristic)i));
+		}
 
-		if (temp_dimensions.size() != 0) {
+		if (out.size() != dimensions.size()) {
 			puts("ERROR AT " __FUNCTION__ ": Atlas size too small. Aborting.");
 			return { 0 };
 		}
