@@ -20,5 +20,7 @@ Examples are available both in C and C++. To change between them, comment/uncomm
 
 Once the `*.deco` file has been generated, simply ship it along with the executable, inside the relative path specified during `Init()`.
 
+**NOTE**: You need at least *5* different files for this to work. Less than that and zstd will **refuse** to create the dictionary.
+
 # Licensing
 'deco' and 'lsqueezer' are both licensed under the [BSD-3-Clause License](https://github.com/Fallbork/deco/blob/main/LICENSE). 'zstd' is dual-licensed under [BSD](https://github.com/facebook/zstd/blob/dev/LICENSE) and [GPLv2](https://github.com/facebook/zstd/blob/dev/COPYING); for this project we chose the BSD license :)
