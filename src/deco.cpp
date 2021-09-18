@@ -212,7 +212,8 @@ namespace deco {
 		for (auto& entry : fs::directory_iterator(res_path)) {
 			if (entry.is_regular_file() && entry.path().has_extension() &&
 				CheckFileFormat(DECO_SUPPORTED_IMG_FILEFORMATS, entry.path(), &ext) ||
-				CheckFileFormat(DECO_SUPPORTED_SND_FILEFORMATS, entry.path(), &ext)) {
+				CheckFileFormat(DECO_SUPPORTED_SND_FILEFORMATS, entry.path(), &ext) ||
+				CheckFileFormat(DECO_CUSTOM_FILEFORMATS, entry.path(), &ext))
 				paths.push_back(std::move(entry.path().string()));
 				total_bytes += entry.file_size();
 			}
@@ -249,7 +250,8 @@ namespace deco {
 		for (auto& entry : fs::directory_iterator(res_path)) {
 			if (entry.is_regular_file() && entry.path().has_extension() &&
 				CheckFileFormat(DECO_SUPPORTED_IMG_FILEFORMATS, entry.path(), &ext) ||
-				CheckFileFormat(DECO_SUPPORTED_SND_FILEFORMATS, entry.path(), &ext)) {
+				CheckFileFormat(DECO_SUPPORTED_SND_FILEFORMATS, entry.path(), &ext) ||
+				CheckFileFormat(DECO_CUSTOM_FILEFORMATS, entry.path(), &ext)) {
 				in.open(entry.path(), std::ios::in | std::ios::binary);
 				if (!in) {
 					std::string path = entry.path().string();

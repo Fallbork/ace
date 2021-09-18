@@ -4,6 +4,15 @@
 
 #include <config.h>
 
+/* Deco only reads files whose extensions are known at compile-time,
+	so if you wish to use any custom extension that's not available as
+	a directive in raylib, feel free to add them inside the following
+	directive by following this format:
+
+	".ext1,.ext2, ... ,.extN"
+	*/
+#define DECO_CUSTOM_FILEFORMATS ""
+
 // Always supported!
 #define IMG_PNG ".png"
 #define SND_WAV_MP3 ".wav,.mp3"	// Always supported!
