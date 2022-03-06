@@ -1,6 +1,7 @@
 workspace "ace"
 	configurations { "Debug", "Release" }
 	platforms { "x64", "x86" }
+	startproject "example-app"
 
 	filter "configurations:Debug"
 		defines { "DEBUG" }
