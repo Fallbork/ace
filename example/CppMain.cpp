@@ -1,31 +1,31 @@
 #include "Common.h"
 
-#ifdef _EX_CPP
+#ifdef EXAMPLE_CPP
 int main() {
 	// Initialize the window
-	InitWindow(640, 480, "[C++] deco + lsqueezer");
+	InitWindow(640, 480, "[C++] ace + lsqueezer");
 	InitAudioDevice();
 
 	{
 		struct stat info;
-		const char* path = EX_DEFAULT_PATH "/" EX_DEFAULT_NAME ".deco";
+		const char* path = EXAMPLE_DEFAULT_PATH "/" EXAMPLE_DEFAULT_NAME ".ace";
 		if (stat(path, &info) != 0) {
 #ifdef DEBUG
-			// Prevent a crash in case no deco file was previously present.
-			deco::Generate(EX_DEFAULT_COMPRESSION, EX_DEFAULT_RES_PATH, EX_DEFAULT_PATH, EX_DEFAULT_NAME);
+			// Prevent a crash in case no ace file was previously present.
+			ace::Generate(EXAMPLE_DEFAULT_COMPRESSION, EXAMPLE_DEFAULT_RES_PATH, EXAMPLE_DEFAULT_PATH, EXAMPLE_DEFAULT_NAME);
 #else
 			// TODO: Add a different outcome here if you wish.
 #endif
 		}
 	}
 
-	// Initialize Deco
-	deco::Init(EX_DEFAULT_COMPRESSION, EX_DEFAULT_PATH, EX_DEFAULT_NAME);
+	// Initialize Ace
+	ace::Init(EXAMPLE_DEFAULT_COMPRESSION, EXAMPLE_DEFAULT_RES_PATH, EXAMPLE_DEFAULT_PATH, EXAMPLE_DEFAULT_NAME, false);
 
 	// Create explosion sound
 	Sound explosion_sound;
 	{
-		deco_entry explosion = deco::LoadContent("explosion");
+		ace_entry explosion = ace::LoadContent("explosion");
 		Wave explosion_wave = LoadWaveFromMemory(explosion->type.c_str(), explosion->data, explosion->size);
 		explosion_sound = LoadSoundFromWave(explosion_wave);
 		UnloadWave(explosion_wave);
@@ -46,7 +46,7 @@ int main() {
 
 	{
 		const char* tags[] = { "d", "a", "c", "test", "b" }; // Tags/Content ids (out of order for testing)
-		lsqueezer squeezer(EX_ATLAS_W, EX_ATLAS_H, true);	 // Atlas size & Verbosity
+		lsqueezer squeezer(EXAMPLE_ATLAS_W, EXAMPLE_ATLAS_H, true);	 // Atlas size & Verbosity
 
 		// Generate the atlas image
 		Image img = squeezer.RunTags(tags, 5);
@@ -74,23 +74,23 @@ int main() {
 		BeginDrawing();
 		ClearBackground(RAYWHITE);
 		DrawTexture(atlas, 0, 0, WHITE);
-		DrawRectangleLines(0, 0, EX_ATLAS_W, EX_ATLAS_H, RED);
+		DrawRectangleLines(0, 0, EXAMPLE_ATLAS_W, EXAMPLE_ATLAS_H, RED);
 
-		DrawText(EX_TEXT, (GetScreenWidth() - MeasureText(EX_TEXT, 20)) / 2.0f, (GetScreenHeight() - 20) / 2, 20, GRAY);
+		DrawText(EXAMPLE_TEXT, (GetScreenWidth() - MeasureText(EXAMPLE_TEXT, 20)) / 2.0f, (GetScreenHeight() - 20) / 2, 20, GRAY);
 
 		// Use atlas! :)
-		EX_DrawComponent(atlas, a, { 300, 0 }, 0, WHITE);
-		EX_DrawComponent(atlas, b, { 400, 100 }, 0, WHITE);
-		EX_DrawComponent(atlas, c, { 64, 250 }, 0, WHITE);
-		EX_DrawComponent(atlas, d, { 0, 400 }, 0, WHITE);
-		EX_DrawComponent(atlas, test, { 520, 300 }, 0, WHITE);
+		EXAMPLE_DrawComponent(atlas, a, { 300, 0 }, 0, WHITE);
+		EXAMPLE_DrawComponent(atlas, b, { 400, 100 }, 0, WHITE);
+		EXAMPLE_DrawComponent(atlas, c, { 64, 250 }, 0, WHITE);
+		EXAMPLE_DrawComponent(atlas, d, { 0, 400 }, 0, WHITE);
+		EXAMPLE_DrawComponent(atlas, test, { 520, 300 }, 0, WHITE);
 		EndDrawing();
 	}
 
 	// Close
 	UnloadSound(explosion_sound);
-	deco::Stop();
+	ace::Stop();
 	CloseAudioDevice();
 	CloseWindow();
 }
-#endif // _EX_CPP
+#endif // EXAMPLE_CPP

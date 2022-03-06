@@ -84,7 +84,7 @@ static UTIL_time_t g_displayClock = UTIL_TIME_INITIALIZER;
 /* ********************************************************
 *  File related operations
 **********************************************************/
-/** DECO_DIB_LoadFiles() :
+/** ACE_DIB_LoadFiles() :
  *  load samples from files listed in fileNamesTable into buffer.
  *  works even if buffer is too small to load all samples.
  *  Also provides the size of each sample into sampleSizes table
@@ -93,7 +93,7 @@ static UTIL_time_t g_displayClock = UTIL_TIME_INITIALIZER;
  * *bufferSizePtr is modified, it provides the amount data loaded within buffer.
  *  sampleSizes is filled with the size of each sample.
  */
-static unsigned DECO_DIB_LoadFiles(void* buffer, size_t* bufferSizePtr,
+static unsigned ACE_DIB_LoadFiles(void* buffer, size_t* bufferSizePtr,
     size_t* sampleSizes, unsigned sstSize,
     const char** fileNamesTable, unsigned nbFiles, size_t targetChunkSize,
     unsigned displayLevel)
@@ -138,7 +138,7 @@ static unsigned DECO_DIB_LoadFiles(void* buffer, size_t* bufferSizePtr,
 }
 
 #define DiB_rotl32(x,r) ((x << r) | (x >> (32 - r)))
-static U32 DECO_DIB_Rand(U32* src)
+static U32 ACE_DIB_Rand(U32* src)
 {
     static const U32 prime1 = 2654435761U;
     static const U32 prime2 = 2246822519U;
@@ -150,16 +150,16 @@ static U32 DECO_DIB_Rand(U32* src)
     return rand32 >> 5;
 }
 
-/* DECO_DIB_Shuffle() :
+/* ACE_DIB_Shuffle() :
  * shuffle a table of file names in a semi-random way
  * It improves dictionary quality by reducing "locality" impact, so if sample set is very large,
  * it will load random elements from it, instead of just the first ones. */
-static void DECO_DIB_Shuffle(const char** fileNamesTable, unsigned nbFiles) {
+static void ACE_DIB_Shuffle(const char** fileNamesTable, unsigned nbFiles) {
     U32 seed = 0xFD2FB528;
     unsigned i;
     assert(nbFiles >= 1);
     for (i = nbFiles - 1; i > 0; --i) {
-        unsigned const j = DECO_DIB_Rand(&seed) % (i + 1);
+        unsigned const j = ACE_DIB_Rand(&seed) % (i + 1);
         const char* const tmp = fileNamesTable[j];
         fileNamesTable[j] = fileNamesTable[i];
         fileNamesTable[i] = tmp;
@@ -170,7 +170,7 @@ static void DECO_DIB_Shuffle(const char** fileNamesTable, unsigned nbFiles) {
 /*-********************************************************
 *  Dictionary training functions
 **********************************************************/
-static size_t DECO_DIB_FindMaxMem(unsigned long long requiredMem)
+static size_t ACE_DIB_FindMaxMem(unsigned long long requiredMem)
 {
     size_t const step = 8 MB;
     void* testmem = NULL;
@@ -189,7 +189,7 @@ static size_t DECO_DIB_FindMaxMem(unsigned long long requiredMem)
 }
 
 
-static void DECO_DIB_FillNoise(void* buffer, size_t length)
+static void ACE_DIB_FillNoise(void* buffer, size_t length)
 {
     unsigned const prime1 = 2654435761U;
     unsigned const prime2 = 2246822519U;
@@ -209,12 +209,12 @@ typedef struct {
     unsigned nbSamples;
 } fileStats;
 
-/*! DiB_fileStats() :
+/*! ACE_DIB_FileStats() :
  *  Given a list of files, and a chunkSize (0 == no chunk, whole files)
  *  provides the amount of data to be loaded and the resulting nb of samples.
  *  This is useful primarily for allocation purpose => sample buffer, and sample sizes table.
  */
-static fileStats DECO_DIB_FileStats(const char** fileNamesTable, unsigned nbFiles, size_t chunkSize, unsigned displayLevel)
+static fileStats ACE_DIB_FileStats(const char** fileNamesTable, unsigned nbFiles, size_t chunkSize, unsigned displayLevel)
 {
     fileStats fs;
     unsigned n;
@@ -233,7 +233,7 @@ static fileStats DECO_DIB_FileStats(const char** fileNamesTable, unsigned nbFile
     return fs;
 }
 
-ZSTD_Dictionary DECO_DIB_TrainFromFiles(unsigned maxDictSize,
+ZSTD_Dictionary ACE_DIB_TrainFromFiles(unsigned maxDictSize,
     const char** fileNamesTable, unsigned nbFiles, size_t chunkSize,
     ZDICT_legacy_params_t* params, ZDICT_cover_params_t* coverParams,
     ZDICT_fastCover_params_t* fastCoverParams, int optimize)
@@ -243,12 +243,12 @@ ZSTD_Dictionary DECO_DIB_TrainFromFiles(unsigned maxDictSize,
         fastCoverParams ? fastCoverParams->zParams.notificationLevel :
         0;   /* should never happen */
     void* const dictBuffer = malloc(maxDictSize);
-    fileStats const fs = DECO_DIB_FileStats(fileNamesTable, nbFiles, chunkSize, displayLevel);
+    fileStats const fs = ACE_DIB_FileStats(fileNamesTable, nbFiles, chunkSize, displayLevel);
     size_t* const sampleSizes = (size_t*)malloc(fs.nbSamples * sizeof(size_t));
     size_t const memMult = params ? MEMMULT :
         coverParams ? COVER_MEMMULT :
         FASTCOVER_MEMMULT;
-    size_t const maxMem = DECO_DIB_FindMaxMem(fs.totalSizeToLoad * memMult) / memMult;
+    size_t const maxMem = ACE_DIB_FindMaxMem(fs.totalSizeToLoad * memMult) / memMult;
     size_t loadedSize = (size_t)MIN((unsigned long long)maxMem, fs.totalSizeToLoad);
     void* const srcBuffer = malloc(loadedSize + NOISELENGTH);
 
@@ -277,13 +277,13 @@ ZSTD_Dictionary DECO_DIB_TrainFromFiles(unsigned maxDictSize,
 
     /* Load input buffer */
     DISPLAYLEVEL(3, "Shuffling input files\n");
-    DECO_DIB_Shuffle(fileNamesTable, nbFiles);
+    ACE_DIB_Shuffle(fileNamesTable, nbFiles);
 
-    DECO_DIB_LoadFiles(srcBuffer, &loadedSize, sampleSizes, fs.nbSamples, fileNamesTable, nbFiles, chunkSize, displayLevel);
+    ACE_DIB_LoadFiles(srcBuffer, &loadedSize, sampleSizes, fs.nbSamples, fileNamesTable, nbFiles, chunkSize, displayLevel);
     size_t dictSize;
 
     if (params) {
-        DECO_DIB_FillNoise((char*)srcBuffer + loadedSize, NOISELENGTH);   /* guard band, for end of buffer condition */
+        ACE_DIB_FillNoise((char*)srcBuffer + loadedSize, NOISELENGTH);   /* guard band, for end of buffer condition */
         dictSize = ZDICT_trainFromBuffer_legacy(dictBuffer, maxDictSize,
             srcBuffer, sampleSizes, fs.nbSamples,
             *params);

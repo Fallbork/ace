@@ -25,13 +25,13 @@
 
 static lsqueezer* s_lsqueezer = nullptr;
 
-Image lsqueezer::CreateBinFromEntries(deco_buffer& entries) {
+Image lsqueezer::CreateBinFromEntries(ace_buffer& entries) {
 	if (verbose_) { puts("LSQUEEZER: Generating & populating buffers"); }
 	Image bin_image = GenImageColor(bin_width_, bin_height_, BLANK);
 
 	std::vector<rbp::RectSize> dimensions;
 	for (size_t i = 0; i < entries.size(); i++) {
-		// TODO: ideally store size in deco...
+		// TODO: ideally store size in ace...
 		auto& elem = entries[i];
 		Image img;
 		img = LoadImageFromMemory(elem->type.c_str(), elem->data, elem->size);
@@ -91,15 +91,15 @@ Image lsqueezer::CreateBinFromEntries(deco_buffer& entries) {
 	return bin_image;
 }
 
-Image lsqueezer::Run(deco_buffer& entries) {
+Image lsqueezer::Run(ace_buffer& entries) {
 	if (verbose_) { puts("LSQUEEZER: Preparing to run l[esser]squeezer!"); }
 	return CreateBinFromEntries(entries);
 }
 
 Image lsqueezer::RunTags(const char** tags, int size) {
 	if (verbose_) { puts("LSQUEEZER: Preparing to run l[esser]squeezer!"); }
-	if (verbose_) { puts("LSQUEEZER: Fetching requested content from deco"); }
-	auto entries = deco::LoadContentBuffer(tags, size);
+	if (verbose_) { puts("LSQUEEZER: Fetching requested content from ace"); }
+	auto entries = ace::LoadContentBuffer(tags, size);
 	return CreateBinFromEntries(entries);
 }
 
@@ -108,12 +108,12 @@ Image lsqueezer::RunDirectory(const char** tags, int size, const char* folder_pa
 	if (verbose_) { puts("LSQUEEZER: Preparing to run l[esser]squeezer!"); }
 
 	if (verbose_) { printf("LSQUEEZER: Fetching files from directory (\"%s\")", folder_path); }
-	deco_buffer entries;
+	ace_buffer entries;
 	std::string ext;
 	for (auto& entry : fs::directory_iterator(folder_path)) {
 		for (int i = 0; i < size; i++) {
 			if (entry.is_regular_file() && entry.path().has_extension() &&
-				deco::CheckFileFormat(DECO_SUPPORTED_IMG_FILEFORMATS, entry.path(), &ext)) {
+				ace::CheckFileFormat(ACE_SUPPORTED_IMG_FILEFORMATS, entry.path(), &ext)) {
 				if (entry.path().filename().string() == tags[i]) {
 					std::fstream in;
 					in.open(entry.path(), std::ios::in | std::ios::binary);
@@ -121,7 +121,7 @@ Image lsqueezer::RunDirectory(const char** tags, int size, const char* folder_pa
 						printf("ERROR AT " __FUNCTION__ ": Could not open file! (\"%s\")\n", entry.path().c_str());
 						return {0};
 					}
-					deco_entry e = std::make_shared<_deco_entry_cpp>();
+					ace_entry e = std::make_shared<EX_ace_entry_cpp>();
 					e->id = entry.path().filename().string();
 					e->type = ext;
 
@@ -134,7 +134,7 @@ Image lsqueezer::RunDirectory(const char** tags, int size, const char* folder_pa
 					entries.push_back(std::move(e));
 				}
 				else {
-					auto e = deco::LoadContent(tags[i]);
+					auto e = ace::LoadContent(tags[i]);
 					if (e != nullptr) { entries.push_back(e); }
 				}
 			}
@@ -146,7 +146,7 @@ Image lsqueezer::RunDirectory(const char** tags, int size, const char* folder_pa
 
 	std::vector<rbp::RectSize> dimensions;
 	for (size_t i = 0; i < entries.size(); i++) {
-		// TODO: ideally store size in deco...
+		// TODO: ideally store size in ace...
 		auto& elem = entries[i];
 		Image img;
 		img = LoadImageFromMemory(elem->type.c_str(), elem->data, elem->size);

@@ -1,4 +1,4 @@
-#include "deco.h";
+#include "ace.h";
 #include "dictionary/dib.h";
 #include "lsqueezer/lesser_squeezer.h"
 
@@ -8,23 +8,34 @@
 #include <sstream>
 #include <fstream>
 #include <zstd.h>
+#include <md5.h>
 
-#define _DECO_MAX_ALLOC_CAPACITY 256 KB
-#define _DECO_STREAMSIZE_MAX LLONG_MAX
-#define _DECO_DELIM ','
-#define _DECO_EXTERN extern "C"
+#define EX_ACE_MAX_ALLOC_CAPACITY 256 KB
+#define EX_ACE_STREAMSIZE_MAX LLONG_MAX
+#define EX_ACE_DELIM ','
 
 static int s_default_level = 0;
 static const char* s_default_path = NULL;
 
-struct deco_pointer {
+struct ace_pointer {
 	std::string id;
 	std::streampos pos;
 };
 
-class deco_iterator {
-	std::vector<deco_pointer> visited_;
-	std::fstream& stream_;
+class ace_facet : public std::ctype<char> {
+	mask delim_table[table_size];
+
+public:
+	ace_facet(size_t refs = 0) : std::ctype<char>(delim_table, false, refs) {
+		std::copy_n(classic_table(), table_size, delim_table);
+		delim_table[','] = (mask)space;
+	}
+};
+
+// Singleton
+class ace_iterator {
+	std::vector<ace_pointer> visited_;
+	std::fstream stream_;
 	std::streampos pos_;
 	ZSTD_DCtx* dctx_;
 	ZSTD_DDict* ddict_;
@@ -36,16 +47,16 @@ class deco_iterator {
 		pos_ = std::move(pos);
 	}
 
-	deco_pointer query_pointer() {
+	ace_pointer query_pointer() {
 		std::streampos init_pos = pos_;
-		deco_pointer vi{ std::move(parse_value()), std::move(init_pos) };
+		ace_pointer vi{ std::move(parse_value()), std::move(init_pos) };
 		seek_pos(init_pos);	// return to initial pos
 		return vi;
 	}
 
-	void store_pointer(deco_pointer& ptr) {
+	void store_pointer(ace_pointer& ptr) {
 		if (std::find_if(visited_.begin(), visited_.end(),
-			[&](deco_pointer& val) {
+			[&](ace_pointer& val) {
 				return ptr.id == val.id;
 			}
 		) == visited_.end()) {
@@ -54,12 +65,12 @@ class deco_iterator {
 	}
 
 	void skip_value(size_t count = NULL) {
-		if (count == NULL) { stream_.ignore(_DECO_STREAMSIZE_MAX, _DECO_DELIM); }
+		if (count == NULL) { stream_.ignore(EX_ACE_STREAMSIZE_MAX, EX_ACE_DELIM); }
 		else {
 			for (size_t i = 0; i < count; i++) {
 				stream_.ignore();
 			}
-			if (stream_.peek() == _DECO_DELIM) {
+			if (stream_.peek() == EX_ACE_DELIM) {
 				stream_.ignore();	// skip delim
 			}
 		}
@@ -76,9 +87,9 @@ class deco_iterator {
 	}
 
 	std::string parse_value() {
-		std::string buffer;
+		std::string buffer = {};
 		stream_ >> buffer;
-		if (stream_.peek() == _DECO_DELIM) {
+		if (stream_.peek() == EX_ACE_DELIM) {
 			stream_.ignore();	// skip delim
 		}
 		if (*(buffer.begin()) == '"') {
@@ -93,7 +104,7 @@ class deco_iterator {
 	unsigned char* parse_compressed(unsigned int bytes, unsigned int out_bytes) {
 		char* read_buf = new char[bytes];
 		stream_.read(read_buf, bytes);
-		if (stream_.peek() == _DECO_DELIM) {
+		if (stream_.peek() == EX_ACE_DELIM) {
 			stream_.ignore();	// skip delim
 		}
 		pos_ = std::move(stream_.tellg());
@@ -103,9 +114,9 @@ class deco_iterator {
 		return out_buf;
 	}
 
-	deco_entry parse_entry() {
-		if (!is_valid_) { puts("ERROR AT " __FUNCTION__ ": Not a .deco file! Seeking failed."); return {}; }
-		deco_entry elem = std::make_shared<_deco_entry_cpp>();
+	ace_entry parse_entry() {
+		if (!is_valid_) { puts("ERROR AT " __FUNCTION__ ": Not a .ace file! Seeking failed."); return {}; }
+		ace_entry elem = std::make_shared<EX_ace_entry_cpp>();
 		store_pointer(query_pointer());
 		elem->id = std::move(parse_value());
 		elem->type = std::move(parse_value());
@@ -115,44 +126,63 @@ class deco_iterator {
 		return std::move(elem);
 	}
 
+	ace_iterator() : is_valid_(false), pos_(0), dctx_(nullptr), ddict_(nullptr) {};
+
 public:
-	deco_iterator(std::fstream& stream) : stream_(stream), is_valid_(false), pos_(0), dctx_(nullptr), ddict_(nullptr) {
+	ace_iterator(ace_iterator const&) = delete;             // Copy construct
+	ace_iterator(ace_iterator&&) = delete;                  // Move construct
+	ace_iterator& operator=(ace_iterator const&) = delete;  // Copy assign
+	ace_iterator& operator=(ace_iterator&&) = delete;
+
+	static ace_iterator& Get() {
+		static ace_iterator it;
+		return it;
+	}
+
+	ace_iterator* Prime(const char* path) {
+		if (stream_.is_open()) {
+			stream_.close();
+		}
+		stream_.open(s_default_path, std::ios::in | std::ios::binary);
+		if (!stream_) {
+			puts("ERROR AT " __FUNCTION__ ": Could not open ace file!");
+			return NULL;
+		}
+		std::locale x(std::locale::classic(), new ace_facet);	// does this leak?
+		stream_.imbue(x);
 		stream_.clear();
 		stream_.seekg(0, std::ios::beg);	// Seek the beggining just in case
-		if (stream.is_open()) {
-			if (std::stoi(std::move(parse_value())) == 0xDEC0) { is_valid_ = true; }
-			else return;
-			const size_t dict_size = std::stoi(std::move(parse_value()));
-			char* dict = new char[dict_size];
-			stream_.read((char*)dict, dict_size);
-			if (stream_.peek() == _DECO_DELIM) {
-				stream_.ignore();	// skip delim
-			}
-			pos_ = std::move(stream_.tellg());
-			dctx_ = ZSTD_createDCtx();
-			ddict_ = ZSTD_createDDict(dict, dict_size);
-			delete[] dict;
+		if (std::stoi(std::move(parse_value())) == 0xACE) {
+			is_valid_ = true;
 		}
-	};
+		else return NULL;
+		skip_value(); // MD5 Hash
+		const size_t dict_size = std::stoi(std::move(parse_value()));
+		char* dict = new char[dict_size];
+		stream_.read((char*)dict, dict_size);
+		if (stream_.peek() == EX_ACE_DELIM) {
+			stream_.ignore();	// skip delim
+		}
+		pos_ = std::move(stream_.tellg());
+		dctx_ = ZSTD_createDCtx();
+		ddict_ = ZSTD_createDDict(dict, dict_size);
+		delete[] dict;
 
-	~deco_iterator() {
-		if (stream_.is_open()) { stream_.close(); }
-		ZSTD_freeDCtx(dctx_);
-		ZSTD_freeDDict(ddict_);
-	};
+		return this;
+	}
 
-	deco_entry operator[](const char* entry_id) {
-		if (!is_valid_) { puts("ERROR AT " __FUNCTION__ ": Not a .deco file! Seeking failed."); return nullptr; }
+	ace_entry operator[](const char* entry_id) {
+		if (!is_valid_) { puts("ERROR AT " __FUNCTION__ ": Not a .ace file! Seeking failed."); return nullptr; }
 		std::streampos init_pos = pos_;
 		stream_.clear();
 		auto visited_it = std::find_if(visited_.begin(), visited_.end(),
-			[&](deco_pointer& ref) { return ref.id == entry_id; });
+			[&](ace_pointer& ref) { return ref.id == entry_id; });
 		if (visited_it != visited_.end()) {	// element has been visited previously!
 			seek_pos(visited_it->pos);
 			return parse_entry();
 		}
 
-		deco_pointer ptr = query_pointer();
+		ace_pointer ptr = query_pointer();
 		if (ptr.id == entry_id) {
 			return parse_entry();
 		}
@@ -168,25 +198,78 @@ public:
 		seek_pos(init_pos);
 		return nullptr;
 	}
+
+	~ace_iterator() {
+		if (stream_.is_open()) { stream_.close(); }
+		ZSTD_freeDCtx(dctx_);
+		ZSTD_freeDDict(ddict_);
+	};
 };
 
-class deco_facet : public std::ctype<char> {
-	mask delim_table[table_size];
-
-public:
-	deco_facet(size_t refs = 0) : std::ctype<char>(delim_table, false, refs) {
-		std::copy_n(classic_table(), table_size, delim_table);
-		delim_table[','] = (mask)space;
+static unsigned char* CheckDirectoryMD5(const char* path) {
+	namespace fs = std::filesystem;
+	std::string md5_buffer;
+	MD5_CTX ctx = { 0 };
+	MD5_Init(&ctx);
+	// This is not portable at ALL!!!!!!
+	for (auto& entry : fs::directory_iterator(path)) {
+		if (entry.is_regular_file()) {
+			std::string entry_path = entry.path().string();
+			std::replace(entry_path.begin(), entry_path.end(), '\\', '/');
+			std::string entry_info = entry.path().filename().string();
+			struct stat info;
+			if (stat(entry_path.c_str(), &info) == 0) {
+				entry_info.append(std::to_string(info.st_mtime));
+			}
+			md5_buffer.append(entry_info);
+		}
 	}
-};
+	MD5_Update(&ctx, md5_buffer.c_str(), md5_buffer.size());
+	unsigned char* ret = new unsigned char[16];
+	MD5_Final(ret, &ctx);
+	return ret;
+}
 
-namespace deco {
-	void Init(int default_compression_level, const char* deco_path, const char* deco_name) {
+namespace ace {
+	void Init(int default_compression_level, const char* res_path, const char* ace_path, const char* ace_name, bool scan_changes) {
 		if (s_default_path) { free((void*)s_default_path); }
 		s_default_level = default_compression_level;
-		std::string fmt_path = std::string(deco_path) + '/' + deco_name + ".deco";
+		std::string fmt_path = std::string(ace_path) + '/' + ace_name + ".ace";
 		s_default_path = (const char*)malloc(fmt_path.size() + 1);
 		if (s_default_path) { memcpy((void*)s_default_path, fmt_path.c_str(), fmt_path.size() + 1); }
+		if (scan_changes) {
+			unsigned char* md5_dir = CheckDirectoryMD5(res_path);
+			unsigned char* md5_ace = new unsigned char[16];
+			{
+				std::fstream ace;
+				ace.open(fmt_path);
+				if (!ace) {
+					puts("ERROR AT " __FUNCTION__ ": Could not open ace file; Generating...");
+					memset(md5_ace, 0, 16);
+				}
+				else {
+					std::locale x(std::locale::classic(), new ace_facet);
+					ace.imbue(x);
+					ace >> std::string();	// 0xACE
+					if (ace.peek() == EX_ACE_DELIM) {
+						ace.ignore();	// skip delim
+					}
+					ace.read((char*)md5_ace, 16); // MD5 Hash
+					ace.close();
+				}
+			}
+			bool valid = true;
+			for (int i = 0; i < 16; i++) {
+				if (md5_ace[i] != md5_dir[i]) {
+					valid = false;
+					break;
+				}
+			}
+			if (!valid) { Generate(default_compression_level, res_path, ace_path, ace_name); }
+			delete[] md5_ace;
+			delete[] md5_dir;
+		}
+		ace_iterator::Get().Prime(fmt_path.c_str());
 	}
 
 	void Stop() {
@@ -198,22 +281,24 @@ namespace deco {
 		std::string ext;
 		std::ofstream out;
 		std::ifstream in;
-		std::string fmt_path = std::string(output_path) + '/' + output_name + ".deco";
+		std::string fmt_path = std::string(output_path) + '/' + output_name + ".ace";
 		out.open(std::move(fmt_path), std::ios::out | std::ios::trunc | std::ios::binary);
 		if (!out) {
-			puts("ERROR AT " __FUNCTION__ ": Could not create deco file!");
+			puts("ERROR AT " __FUNCTION__ ": Could not create ace file!");
 			return;
 		}
-		out << 0xDEC0 << _DECO_DELIM;
+		unsigned char* md5_dir = CheckDirectoryMD5(res_path);
+		(out << 0xACE << EX_ACE_DELIM).write((const char*)md5_dir, 16) << EX_ACE_DELIM;
+		delete[] md5_dir;
 
 		// Create Dictionary
 		std::vector<std::string> paths;
 		float total_bytes = 0.0f;
 		for (auto& entry : fs::directory_iterator(res_path)) {
 			if (entry.is_regular_file() && entry.path().has_extension() &&
-				CheckFileFormat(DECO_SUPPORTED_IMG_FILEFORMATS, entry.path(), &ext) ||
-				CheckFileFormat(DECO_SUPPORTED_SND_FILEFORMATS, entry.path(), &ext) ||
-				CheckFileFormat(DECO_CUSTOM_FILEFORMATS, entry.path(), &ext))
+				CheckFileFormat(ACE_SUPPORTED_IMG_FILEFORMATS, entry.path(), &ext) ||
+				CheckFileFormat(ACE_SUPPORTED_SND_FILEFORMATS, entry.path(), &ext) ||
+				CheckFileFormat(ACE_CUSTOM_FILEFORMATS, entry.path(), &ext)) {
 				paths.push_back(std::move(entry.path().string()));
 				total_bytes += entry.file_size();
 			}
@@ -235,10 +320,10 @@ namespace deco {
 		params.shrinkDictMaxRegression = 1;
 		params.zParams = ZDICT_params_t{ (compression_level < 0 ? 10 : compression_level), 0, 0 };
 
-		auto dict = DECO_DIB_TrainFromFiles(total_bytes / 8.0f, (const char**)c_paths, paths.size(), NULL, NULL, &params, NULL, NULL);
+		auto dict = ACE_DIB_TrainFromFiles(total_bytes / 8.0f, (const char**)c_paths, paths.size(), NULL, NULL, &params, NULL, NULL);
 
 		ZSTD_CDict* cdict = ZSTD_createCDict(dict.data, dict.size, params.zParams.compressionLevel);
-		(out << dict.size << _DECO_DELIM).write((const char*)dict.data, dict.size) << _DECO_DELIM; // SKETCHY AF
+		(out << dict.size << EX_ACE_DELIM).write((const char*)dict.data, dict.size) << EX_ACE_DELIM; // SKETCHY AF
 		free(dict.data);
 		for (size_t i = 0; i < paths.size(); i++) {
 			delete[] c_paths[i];
@@ -249,9 +334,9 @@ namespace deco {
 		ZSTD_CCtx* cctx = ZSTD_createCCtx();
 		for (auto& entry : fs::directory_iterator(res_path)) {
 			if (entry.is_regular_file() && entry.path().has_extension() &&
-				CheckFileFormat(DECO_SUPPORTED_IMG_FILEFORMATS, entry.path(), &ext) ||
-				CheckFileFormat(DECO_SUPPORTED_SND_FILEFORMATS, entry.path(), &ext) ||
-				CheckFileFormat(DECO_CUSTOM_FILEFORMATS, entry.path(), &ext)) {
+				CheckFileFormat(ACE_SUPPORTED_IMG_FILEFORMATS, entry.path(), &ext) ||
+				CheckFileFormat(ACE_SUPPORTED_SND_FILEFORMATS, entry.path(), &ext) ||
+				CheckFileFormat(ACE_CUSTOM_FILEFORMATS, entry.path(), &ext)) {
 				in.open(entry.path(), std::ios::in | std::ios::binary);
 				if (!in) {
 					std::string path = entry.path().string();
@@ -262,21 +347,21 @@ namespace deco {
 				const size_t src_size = buf->pubseekoff(0, in.end, in.in); // PAIN
 				buf->pubseekpos(0, in.in);								   // PAIN
 
-				char* dst_buf = new char[_DECO_MAX_ALLOC_CAPACITY];
+				char* dst_buf = new char[EX_ACE_MAX_ALLOC_CAPACITY];
 				int dst_size = 0;
 				{
 					char* src_buf = (char*)malloc(src_size);
 					in.read(src_buf, src_size);
-					dst_size = ZSTD_compress_usingCDict(cctx, dst_buf, _DECO_MAX_ALLOC_CAPACITY, src_buf, src_size, cdict);
+					dst_size = ZSTD_compress_usingCDict(cctx, dst_buf, EX_ACE_MAX_ALLOC_CAPACITY, src_buf, src_size, cdict);
 					free(src_buf);
 				}
-				out << entry.path().stem() << _DECO_DELIM << ext << _DECO_DELIM << src_size << _DECO_DELIM;
-				out << dst_size << _DECO_DELIM;
-				out.write(dst_buf, dst_size) << _DECO_DELIM;
+				out << entry.path().stem() << EX_ACE_DELIM << ext << EX_ACE_DELIM << src_size << EX_ACE_DELIM;
+				out << dst_size << EX_ACE_DELIM;
+				out.write(dst_buf, dst_size) << EX_ACE_DELIM;
 				delete[] dst_buf;
 				in.close();
 			}
-	}
+		}
 		ZSTD_freeCDict(cdict);
 		ZSTD_freeCCtx(cctx);
 		out.close();
@@ -292,65 +377,43 @@ namespace deco {
 		return false;
 	}
 
-	deco_buffer LoadContentBuffer(const char* tags[], int count) {
-		namespace fs = std::filesystem;
-		std::fstream in;
-		in.open(s_default_path, std::ios::in | std::ios::binary);
-		if (!in) {
-			puts("ERROR AT " __FUNCTION__ ": Could not open deco file!");
-			return {};
-		}
-		std::locale x(std::locale::classic(), new deco_facet);	// does this leak?
-		in.imbue(x);
-
-		deco_buffer elements;
-		deco_iterator it(in);
+	ace_buffer LoadContentBuffer(const char* tags[], int count) {
+		ace_buffer elements;
 		for (size_t i = 0; i < count; i++) {
-			deco_entry e = it[tags[i]];
+			ace_entry e = ace_iterator::Get()[tags[i]];
 			if (e != nullptr) { elements.push_back(e); }
 		}
 		return elements;
 	}
 
-	deco_entry LoadContent(const char* tag) {
-		namespace fs = std::filesystem;
-		std::fstream in;
-		in.open(s_default_path, std::ios::in | std::ios::binary);
-		if (!in) {
-			puts("ERROR AT " __FUNCTION__ ": Could not open deco file!");
-			return {};
-		}
-		std::locale x(std::locale::classic(), new deco_facet);	// does this leak?
-		in.imbue(x);
-
-		deco_iterator it(in);
-		deco_entry e = it[tag];
+	ace_entry LoadContent(const char* tag) {
+		ace_entry e = ace_iterator::Get()[tag];
 		if (e == nullptr) { return nullptr; }
 		return e;
 	}
 }
 
 extern "C" {
-	void Deco_Init(int default_compression_level, const char* deco_path, const char* deco_name) {
-		deco::Init(default_compression_level, deco_path, deco_name);
+	void Ace_Init(int default_compression_level, const char* res_path, const char* ace_path, const char* ace_name, bool scan_changes) {
+		ace::Init(default_compression_level, res_path, ace_path, ace_name, scan_changes);
 	}
 
-	void Deco_Stop() {
-		deco::Stop();
+	void Ace_Stop() {
+		ace::Stop();
 	}
 
-	void Deco_Generate(int compression_level, const char* res_path, const char* output_path, const char* output_name) {
-		deco::Generate(compression_level, res_path, output_path, output_name);
+	void Ace_Generate(int compression_level, const char* res_path, const char* output_path, const char* output_name) {
+		ace::Generate(compression_level, res_path, output_path, output_name);
 	}
 
-	_deco_buffer_c Deco_LoadContentBuffer(const char* tags[], int count) {
-		deco_buffer ret = deco::LoadContentBuffer(tags, count);
-		_deco_buffer_c c_buf;
+	EX_ace_buffer_c Ace_LoadContentBuffer(const char* tags[], int count) {
+		ace_buffer ret = ace::LoadContentBuffer(tags, count);
+		EX_ace_buffer_c c_buf;
 		c_buf.size = ret.size();
-		c_buf.buffer = (_deco_entry_c**)malloc(c_buf.size * sizeof(_deco_entry_c*));
+		c_buf.buffer = (EX_ace_entry_c**)malloc(c_buf.size * sizeof(EX_ace_entry_c*));
 		for (size_t i = 0; i < ret.size(); i++) {
-			deco_entry& entry = ret[i];
-			_deco_entry_c* c_entry = (_deco_entry_c*)malloc(sizeof(_deco_entry_c));
+			ace_entry& entry = ret[i];
+			EX_ace_entry_c* c_entry = (EX_ace_entry_c*)malloc(sizeof(EX_ace_entry_c));
 			if (c_entry) {
 				c_entry->id = (const char*)malloc(entry->id.size() + 1);
 				memcpy((void*)c_entry->id, entry->id.c_str(), entry->id.size() + 1);
@@ -365,9 +428,9 @@ extern "C" {
 		return c_buf;
 	}
 
-	_deco_entry_c* Deco_LoadContent(const char* tag) {
-		deco_entry entry = deco::LoadContent(tag);
-		_deco_entry_c* c_entry = (_deco_entry_c*)malloc(sizeof(_deco_entry_c));
+	EX_ace_entry_c* Ace_LoadContent(const char* tag) {
+		ace_entry entry = ace::LoadContent(tag);
+		EX_ace_entry_c* c_entry = (EX_ace_entry_c*)malloc(sizeof(EX_ace_entry_c));
 		if (c_entry) {
 			c_entry->id = (const char*)malloc(entry->id.size() + 1);
 			memcpy((void*)c_entry->id, entry->id.c_str(), entry->id.size() + 1);
@@ -380,16 +443,16 @@ extern "C" {
 		return c_entry;
 	}
 
-	void Deco_FreeEntry(_deco_entry_c* entry) {
+	void Ace_FreeEntry(EX_ace_entry_c* entry) {
 		free((void*)entry->data);
 		free((void*)entry->id);
 		free((void*)entry->type);
 		free((void*)entry);
 	}
 
-	void Deco_FreeBuffer(_deco_buffer_c* buffer) {
+	void Ace_FreeBuffer(EX_ace_buffer_c* buffer) {
 		for (int i = 0; i < buffer->size; i++) {
-			Deco_FreeEntry(buffer->buffer[i]);
+			Ace_FreeEntry(buffer->buffer[i]);
 		}
 		free((void*)buffer);
 	}

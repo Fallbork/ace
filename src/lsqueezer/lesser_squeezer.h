@@ -17,7 +17,7 @@
  */
 
 #pragma once
-#include "../deco.h"
+#include "../ace.h"
 #include "../AtlasComponent.h"	// I couldn't forward declare it for some weird reason????
 #include <raylib.h>
 
@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 
-#define _LS_FUNCTION(x) x
+#define EX_LS_FUNCTION(x) x
 
 typedef std::map<std::string, AtlasComponent> AtlasMap;
 
@@ -36,7 +36,7 @@ class lsqueezer {
 	const size_t bin_height_;
 	AtlasMap map_;
 
-	Image inline CreateBinFromEntries(std::vector<deco_entry>& entries);
+	Image inline CreateBinFromEntries(std::vector<ace_entry>& entries);
 
 public:
 
@@ -53,13 +53,13 @@ public:
 	}
 
 	/* Run():
-		Create atlas from deco entries.
+		Create atlas from ace entries.
 
-		* Entries: a vector of previously loaded deco entries.
+		* Entries: a vector of previously loaded ace entries.
 		*/
-	Image Run(deco_buffer& entries);
+	Image Run(ace_buffer& entries);
 #else
-#define _LS_FUNCTION(x) LS_##x
+#define EX_LS_FUNCTION(x) LS_##x
 
 	/* Init():
 		Initializes static data.
@@ -73,7 +73,7 @@ public:
 	/* GetComponent():
 		Get a component's data.
 
-		* Name: the component's name; same as the file name/deco entry id.
+		* Name: the component's name; same as the file name/ace entry id.
 		* Size: size of the tags array;
 		* NOTE: if no match to an id is found, it returns a NULL struct.
 		*/
@@ -85,14 +85,14 @@ public:
 	void LS_Stop();
 #endif
 	/* RunTags():
-		Create atlas from deco tags.
+		Create atlas from ace tags.
 	
-		* Tags: an array of entry ids(names); lsqueezer will automatically pull them from deco;
+		* Tags: an array of entry ids(names); lsqueezer will automatically pull them from ace;
 		* Size: size of the tags array;
 		* NOTE: if no match to an id is found, it is skipped; the function will fail if the bin
 		  is not large enough to fit all the contents.
 		*/
-	Image _LS_FUNCTION(RunTags(const char** tags, int size));
+	Image EX_LS_FUNCTION(RunTags(const char** tags, int size));
 
 	/* RunDirectory():
 		Create atlas from files inside a directory.
@@ -101,10 +101,10 @@ public:
 		* Size: size of the tags array;
 		* Folder_path: a directory from which to load images from;
 		* NOTE: in case the requested entry id is not found in the folder, the function will
-		  attempt to pull it from deco. If no match to an id is found, it is skipped; the 
+		  attempt to pull it from ace. If no match to an id is found, it is skipped; the 
 		  function will fail if the bin is not large enough to fit all the contents.
 		*/
-	Image _LS_FUNCTION(RunDirectory(const char** tags, int size, const char* folder_path));
+	Image EX_LS_FUNCTION(RunDirectory(const char** tags, int size, const char* folder_path));
 
 #ifdef __cplusplus
 };

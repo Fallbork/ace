@@ -1,4 +1,4 @@
-workspace "deco"
+workspace "ace"
 	configurations { "Debug", "Release" }
 	platforms { "x64", "x86" }
 
@@ -44,7 +44,7 @@ project "raylib"
 
 		includedirs { "Addons/raylib/src", "Addons/raylib/src/external/glfw/include" }
 
-project "deco"
+project "ace"
 		filter "configurations:Debug OR Release"
 			kind "StaticLib"
 			
@@ -59,14 +59,14 @@ project "deco"
 		
 		files { "src/**.h", "src/**.c", "src/**.cpp", "addons/zstd/lib/**.h", "addons/zstd/lib/**.c",
 				"addons/zstd/programs/util.*", "addons/zstd/programs/timefn.*",
-				"addons/zstd/programs/platform.*", "addons/zstd/lib/common/*.*" }
+				"addons/zstd/programs/platform.*", "addons/zstd/lib/common/*.*", "addons/md5/*.*" }
 		removefiles { "addons/zstd/programs/dibio.*" }
 		vpaths {
 			["Header Files"] = { "**.h" },
 			["Source Files/*"] = { "**.c", "**.cpp" },
 		}
 
-		includedirs { "addons/zstd/lib", "addons/zstd/programs", "addons/raylib/src" }
+		includedirs { "addons/zstd/lib", "addons/zstd/programs", "addons/raylib/src", "addons/md5" }
 
 project "example-app"
 	kind "ConsoleApp"
@@ -81,7 +81,7 @@ project "example-app"
 		["Source Files"] = { "**.c", "**.cpp" },
 	}
 
-	links { "raylib", "deco" }
+	links { "raylib", "ace" }
 	
 	-- Additional include >>directories<< - easier access!
 	includedirs { "addons/zstd/lib", "addons/zstd/programs", "addons/raylib/src", "src" }
@@ -89,8 +89,8 @@ project "example-app"
 
 	filter "action:vs*"
 		defines{ "_WINSOCK_DEPRECATED_NO_WARNINGS", "_CRT_SECURE_NO_WARNINGS", "_WIN32" }
-		dependson { "raylib", "deco" }
-		links { "raylib.lib", "winmm", "kernel32", "deco.lib" }
+		dependson { "raylib", "ace" }
+		links { "raylib.lib", "winmm", "kernel32", "ace.lib" }
 		libdirs { "addons/raylib/build/%{cfg.buildcfg}/%{cfg.platform}", "build/%{cfg.buildcfg}/%{cfg.platform}" }
 
 	filter "action:gmake*"
