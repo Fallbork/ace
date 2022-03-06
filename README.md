@@ -15,7 +15,7 @@ Compression is done making use of [zstd](https://github.com/facebook/zstd "Zstan
 	Ace_Init(int default_compression_level, const char* res_path, const char* ace_path, const char* ace_name, bool scan_changes);
 
 // (1.1) Generate the file again if needed
-   Recommended: Check if a '.ace' file doesn't exist already. This is an expensive function.*/
+   Recommended: Check if a '.ace' file doesn't exist already. This is an expensive function.
 	// C++
 	ace::Generate(int compression_level, const char* res_path, const char* output_path, const char* output_name);
 	// C
