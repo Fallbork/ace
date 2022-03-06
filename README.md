@@ -84,7 +84,7 @@ premake5 <flag>
 
 Examples are available both in C and C++. To change between them, comment/uncomment the following directive inside `example/Common.h`:
 ```c
-#define _EX_CPP
+#define EXAMPLE_CPP
 ```
 
 # Licensing
