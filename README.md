@@ -76,9 +76,11 @@ Once the `*.ace` file has been generated, simply ship it along with the executab
 ```
 
 # Examples
-To build the examples, simply execute `premake-vs2019.bat`(Windows) or run:
+***This project requires premake5 to be installed on your computer***
+To build the examples, simply run:
 ```
 cd <clone-directory>
+git submodule update --init --remote
 premake5 <flag>
 ```
 
