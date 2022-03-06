@@ -1,47 +1,46 @@
-# deco
-'deco' (drifter's embeddable content organizer) files are meant to provide an easy way to distribute resources along with any raylib project. 
+# ace
+'ace' (automatic content embedder) files are meant to provide an easy way to distribute resources along with any raylib project. 
 
-'lsqueezer' is a tool to create texture atlases at runtime. It comes as a module of 'deco', with complete support to it.
+'lsqueezer' is a tool to create texture atlases at runtime. It comes as a module of 'ace', with complete support to it.
 
 Both these libraries work with any C/C++ project, as long as the compiler is capable of handling C++17; they use std::filesystem internally to scan and read files in the most native, cross-platform way possible.
 Compression is done making use of [zstd](https://github.com/facebook/zstd "Zstandard's GitHub repository")'s dictionary feature, to compress data ranging from a couple bytes up to several MBs.
 
-# Usage (deco)
+# Usage (ace)
 ```cpp
-/* (1) Create a '.deco' file
-   Recommended: Check if a '.deco' file doesn't exist already. This is an expensive function.*/
+// (1) Initialize the library - This function can automatically scan for changes inside the resource folder.
 	// C++
-	deco::Generate(int compression_level, const char* res_path, const char* output_path, const char* output_name);
+	ace::Init(int default_compression_level, const char* res_path, const char* ace_path, const char* ace_name, bool scan_changes);
 	// C
-	Deco_Generate(int compression_level, const char* res_path, const char* output_path, const char* output_name);
+	Ace_Init(int default_compression_level, const char* res_path, const char* ace_path, const char* ace_name, bool scan_changes);
 
-// (2) Initialize the library
+// (1.1) Generate the file again if needed
+   Recommended: Check if a '.ace' file doesn't exist already. This is an expensive function.*/
 	// C++
-	deco::Init(int default_compression_level, const char* deco_path, const char* deco_name);
+	ace::Generate(int compression_level, const char* res_path, const char* output_path, const char* output_name);
 	// C
-	Deco_Init(int default_compression_level, const char* deco_path, const char* deco_name);
-
-// (3) Load content
+	Ace_Generate(int compression_level, const char* res_path, const char* output_path, const char* output_name);
+	
+// (2) Load content
 	// C++
-	deco::LoadContentBuffer(const char* tags[], int count);
-	deco::LoadContent(const char* tag);
+	ace_buffer ace::LoadContentBuffer(const char* tags[], int count);
+	ace_entry ace::LoadContent(const char* tag);
 	// C
-	Deco_LoadContentBuffer(const char* tags[], int count);
-	Deco_LoadContent(const char* tag);
+	ace_buffer* Ace_LoadContentBuffer(const char* tags[], int count);
+	ace_entry* Ace_LoadContent(const char* tag);
 
-// (4) C ONLY - Free buffers and entries
-	Deco_FreeBuffer(deco_buffer* buffer);
-	Deco_FreeEntry(deco_entry* entry);
+// (2.1) C ONLY - Free buffers and entries
+	Ace_FreeBuffer(ace_buffer* buffer);
+	Ace_FreeEntry(ace_entry* entry);
 
-// (5) Stop the library
+// (3) Stop the library
 	// C++
-	deco::Stop();
+	ace::Stop();
 	// C
-	Deco_Stop();
-
+	Ace_Stop();
 ```
 
-Once the `*.deco` file has been generated, simply ship it along with the executable, inside the relative path specified during `Init()`. To specify custom file formats to use with deco, simply follow the instructions inside `deco.h`.
+Once the `*.ace` file has been generated, simply ship it along with the executable, inside the relative path specified during `Init()`. To specify custom file formats to use with ace, simply follow the instructions inside `ace.h`.
 
 **NOTE**: You need at least *5* different files for this to work. Less than that and zstd will **refuse** to create the dictionary.
 
@@ -51,26 +50,27 @@ Once the `*.deco` file has been generated, simply ship it along with the executa
 	// C++
 	auto ls = lsqueezer(const size_t w, const size_t h, const bool verbose = false);
 	/* C
-		Note: just like malloc/free, to every LS_Init you MUST have an equivalent call to LS_Stop, or else you'll leak memory.*/
+	    Note: just like malloc/free, to every LS_Init you MUST have an equivalent call to LS_Stop, or else you'll leak memory.
+	    */
 	LS_Init(const size_t w, const size_t h, const bool verbose);
 
 // (2) Create the atlas image
 	// C++
-	ls.Run(deco_buffer& entries);
-	ls.RunTags(const char** tags, int size);
-	ls.RunDirectory(const char** tags, int size, const char* folder_path);
+	Image ls.Run(ace_buffer& entries);
+	Image ls.RunTags(const char** tags, int size);
+	Image ls.RunDirectory(const char** tags, int size, const char* folder_path);
 	// C
-	LS_RunTags(const char** tags, int size);
-	LS_RunDirectory(const char** tags, int size, const char* folder_path);
+	Image LS_RunTags(const char** tags, int size);
+	Image LS_RunDirectory(const char** tags, int size, const char* folder_path);
 
 // (3) Retrieve positions in atlas(AtlasComponents)
 	// C++
-	ls[std::string& tag];
-	ls[const char* tag];
+	AtlasComponent ls[std::string& tag];
+	AtlasComponent ls[const char* tag];
 	// C
-	LS_GetComponent(const char* tag);
+	AtlasComponent LS_GetComponent(const char* tag);
 
-// (4) C ONLY - Free lsqueezer
+// (3.1) C ONLY - Free lsqueezer
 	LS_Stop();
 
 ```
@@ -88,4 +88,4 @@ Examples are available both in C and C++. To change between them, comment/uncomm
 ```
 
 # Licensing
-'deco' and 'lsqueezer' are both licensed under the [BSD-3-Clause License](https://github.com/Fallbork/deco/blob/main/LICENSE). 'zstd' is dual-licensed under [BSD](https://github.com/facebook/zstd/blob/dev/LICENSE) and [GPLv2](https://github.com/facebook/zstd/blob/dev/COPYING); for this project we chose the BSD license :)
+'ace' and 'lsqueezer' are both licensed under the [BSD-3-Clause License](https://github.com/Fallbork/ace/blob/main/LICENSE). 'zstd' is dual-licensed under [BSD](https://github.com/facebook/zstd/blob/dev/LICENSE) and [GPLv2](https://github.com/facebook/zstd/blob/dev/COPYING); for this project we chose the BSD license :)
