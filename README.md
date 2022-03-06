@@ -77,6 +77,7 @@ Once the `*.ace` file has been generated, simply ship it along with the executab
 
 # Examples
 ***This project requires premake5 to be installed on your computer***
+
 To build the examples, simply run:
 ```
 cd <clone-directory>
