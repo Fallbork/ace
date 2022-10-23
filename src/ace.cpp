@@ -1,6 +1,5 @@
 #include "ace.h";
 #include "dictionary/dib.h";
-#include "lsqueezer/lesser_squeezer.h"
 
 #include <map>
 #include <limits>
@@ -89,15 +88,17 @@ class ace_iterator {
 	std::string parse_value() {
 		std::string buffer = {};
 		stream_ >> buffer;
-		if (stream_.peek() == EX_ACE_DELIM) {
-			stream_.ignore();	// skip delim
+		if (buffer.size() != 0) {
+			if (stream_.peek() == EX_ACE_DELIM) {
+				stream_.ignore();	// skip delim
+			}
+			if (*(buffer.begin()) == '"') {
+				if (*(buffer.rbegin()) == '"') { buffer = buffer.substr(1, buffer.length() - 2); }
+				else { buffer = buffer.substr(1, buffer.length() - 1); }
+			}
+			else if (*(buffer.rbegin()) == '"') { buffer = buffer.substr(0, buffer.length() - 1); }
+			pos_ = std::move(stream_.tellg());
 		}
-		if (*(buffer.begin()) == '"') {
-			if (*(buffer.rbegin()) == '"') { buffer = buffer.substr(1, buffer.length() - 2); }
-			else { buffer = buffer.substr(1, buffer.length() - 1); }
-		}
-		else if (*(buffer.rbegin()) == '"') { buffer = buffer.substr(0, buffer.length() - 1); }
-		pos_ = std::move(stream_.tellg());
 		return buffer;
 	}
 
@@ -126,7 +127,7 @@ class ace_iterator {
 		return std::move(elem);
 	}
 
-	ace_iterator() : is_valid_(false), pos_(0), dctx_(nullptr), ddict_(nullptr) {};
+	ace_iterator() : is_valid_(false), pos_(0), dctx_(NULL), ddict_(NULL) {};
 
 public:
 	ace_iterator(ace_iterator const&) = delete;             // Copy construct
@@ -172,7 +173,7 @@ public:
 	}
 
 	ace_entry operator[](const char* entry_id) {
-		if (!is_valid_) { puts("ERROR AT " __FUNCTION__ ": Not a .ace file! Seeking failed."); return nullptr; }
+		if (!is_valid_) { puts("ERROR AT " __FUNCTION__ ": Not a .ace file! Seeking failed."); return NULL; }
 		std::streampos init_pos = pos_;
 		stream_.clear();
 		auto visited_it = std::find_if(visited_.begin(), visited_.end(),
@@ -186,9 +187,12 @@ public:
 		if (ptr.id == entry_id) {
 			return parse_entry();
 		}
-		while (ptr.id != entry_id && !stream_.eof()) {	// read until found
+		while (ptr.id != entry_id && !stream_.eof() && ptr.id.size() != 0) {	// read until found
 			skip_entry();
 			ptr = query_pointer();
+			if (ptr.id.size() == 0) {
+				break;
+			}
 			if (ptr.id == entry_id) {
 				return parse_entry();
 			}
@@ -196,7 +200,7 @@ public:
 		// return to the beggining of search if not found
 		puts("ERROR AT " __FUNCTION__ ": Could not find entry.");
 		seek_pos(init_pos);
-		return nullptr;
+		return NULL;
 	}
 
 	~ace_iterator() {
@@ -369,11 +373,11 @@ namespace ace {
 
 	bool CheckFileFormat(const char* fmt, const std::filesystem::path& path, std::string* buffer) {
 		std::stringstream ss(fmt);
-		std::string* ext = (buffer == nullptr) ? new std::string() : buffer;
+		std::string* ext = (buffer == NULL) ? new std::string() : buffer;
 		while (std::getline(ss, *ext, ',')) {
 			if (path.extension().string() == *ext) { return true; }
 		}
-		if (buffer == nullptr) { delete ext; }
+		if (buffer == NULL) { delete ext; }
 		return false;
 	}
 
@@ -381,14 +385,13 @@ namespace ace {
 		ace_buffer elements;
 		for (size_t i = 0; i < count; i++) {
 			ace_entry e = ace_iterator::Get()[tags[i]];
-			if (e != nullptr) { elements.push_back(e); }
+			if (e != NULL) { elements.push_back(e); }
 		}
 		return elements;
 	}
 
 	ace_entry LoadContent(const char* tag) {
 		ace_entry e = ace_iterator::Get()[tag];
-		if (e == nullptr) { return nullptr; }
 		return e;
 	}
 }
@@ -413,7 +416,29 @@ extern "C" {
 		c_buf.buffer = (EX_ace_entry_c**)malloc(c_buf.size * sizeof(EX_ace_entry_c*));
 		for (size_t i = 0; i < ret.size(); i++) {
 			ace_entry& entry = ret[i];
-			EX_ace_entry_c* c_entry = (EX_ace_entry_c*)malloc(sizeof(EX_ace_entry_c));
+			EX_ace_entry_c* c_entry = NULL;
+			if (entry) {
+				c_entry = (EX_ace_entry_c*)malloc(sizeof(EX_ace_entry_c));
+				if (c_entry) {
+					c_entry->id = (const char*)malloc(entry->id.size() + 1);
+					memcpy((void*)c_entry->id, entry->id.c_str(), entry->id.size() + 1);
+					c_entry->type = (const char*)malloc(entry->type.size() + 1);
+					memcpy((void*)c_entry->type, entry->type.c_str(), entry->type.size() + 1);
+					c_entry->data = (unsigned char*)malloc(entry->size);
+					memcpy((void*)c_entry->data, entry->data, entry->size);
+					c_entry->size = entry->size;
+					c_buf.buffer[i] = c_entry;
+				}
+			}
+		}
+		return c_buf;
+	}
+
+	EX_ace_entry_c* Ace_LoadContent(const char* tag) {
+		ace_entry entry = ace::LoadContent(tag);
+		EX_ace_entry_c* c_entry = NULL;
+		if (entry) {
+			c_entry = (EX_ace_entry_c*)malloc(sizeof(EX_ace_entry_c));
 			if (c_entry) {
 				c_entry->id = (const char*)malloc(entry->id.size() + 1);
 				memcpy((void*)c_entry->id, entry->id.c_str(), entry->id.size() + 1);
@@ -422,23 +447,7 @@ extern "C" {
 				c_entry->data = (unsigned char*)malloc(entry->size);
 				memcpy((void*)c_entry->data, entry->data, entry->size);
 				c_entry->size = entry->size;
-				c_buf.buffer[i] = c_entry;
 			}
-		}
-		return c_buf;
-	}
-
-	EX_ace_entry_c* Ace_LoadContent(const char* tag) {
-		ace_entry entry = ace::LoadContent(tag);
-		EX_ace_entry_c* c_entry = (EX_ace_entry_c*)malloc(sizeof(EX_ace_entry_c));
-		if (c_entry) {
-			c_entry->id = (const char*)malloc(entry->id.size() + 1);
-			memcpy((void*)c_entry->id, entry->id.c_str(), entry->id.size() + 1);
-			c_entry->type = (const char*)malloc(entry->type.size() + 1);
-			memcpy((void*)c_entry->type, entry->type.c_str(), entry->type.size() + 1);
-			c_entry->data = (unsigned char*)malloc(entry->size);
-			memcpy((void*)c_entry->data, entry->data, entry->size);
-			c_entry->size = entry->size;
 		}
 		return c_entry;
 	}
