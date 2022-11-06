@@ -1,5 +1,4 @@
 #pragma once
-
 #include "aceconfig.h"
 
 typedef struct {
@@ -11,7 +10,7 @@ typedef struct {
 
 typedef struct {
 	int size;
-	EX_ace_entry_c** buffer;
+	EX_ace_entry_c* buffer;
 } EX_ace_buffer_c;
 
 #if defined (__cplusplus)
@@ -34,10 +33,8 @@ struct EX_ace_entry_cpp {
 	}
 };
 
-typedef std::shared_ptr<EX_ace_entry_cpp> ace_entry;
+typedef EX_ace_entry_cpp ace_entry;
 typedef std::vector<ace_entry> ace_buffer;
-
-#define EX_ACE_ENTRY ace_entry
 
 namespace ace {
 #else
@@ -47,20 +44,21 @@ namespace ace {
 
 typedef EX_ace_entry_c ace_entry;
 typedef EX_ace_buffer_c ace_buffer;
-
-#define EX_ACE_ENTRY ace_entry*
 #endif
 
+#define EX_ACE_ENTRY ace_entry
+
 /* Init():
-*   Initializes ace static data.
+    Initializes ace static data.
 	
 	* Default compression level: default compression for zstd; 1 ... 19 are supported
 	  as far as this version of zstd goes;
 	* Ace_path: path in which to search for a ace file during operations;
 	* Ace_name: name of the ace file;
+	* Returns: 1 on success, 0 on failure
 	* NOTE: Will format path as 'ace_path' / 'ace_name'.ace*.
 	*/
-void EX_ACE_FUNCTION(Init(int default_compression_level, const char* res_path, const char* ace_path, const char* ace_name, bool scan_changes));
+int EX_ACE_FUNCTION(Init(int default_compression_level, const char* res_path, const char* ace_path, const char* ace_name, bool scan_changes));
 
 /* Stop():
 	Cleans up static data;
@@ -76,8 +74,9 @@ void EX_ACE_FUNCTION(Stop());
 	* Res_path: path with all files to be compressed;
 	* Output_path: path in which to save the ace file;
 	* Output_name: name of the ace file;
+	* Returns: 1 on success, 0 on failure
 	*/
-void EX_ACE_FUNCTION(Generate(int compression_level, const char* res_path, const char* output_path, const char* output_name));
+int EX_ACE_FUNCTION(Generate(int compression_level, const char* res_path, const char* output_path, const char* output_name));
 
 #ifdef __cplusplus
 #endif
@@ -102,8 +101,8 @@ EX_ACE_ENTRY EX_ACE_FUNCTION(LoadContent(const char* tag));
 bool CheckFileFormat(const char* fmt, const std::filesystem::path& path, std::string* buffer);
 }
 #else
-void EX_ACE_FUNCTION(FreeEntry(ace_entry* entry));
-void EX_ACE_FUNCTION(FreeBuffer(ace_buffer* buffer));
+void EX_ACE_FUNCTION(FreeEntry(ace_entry entry));
+void EX_ACE_FUNCTION(FreeBuffer(ace_buffer buffer));
 #endif
 
 
