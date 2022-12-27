@@ -28,13 +28,29 @@ struct EX_ace_entry_cpp {
 	unsigned char* data;	// Data array
 
 	EX_ace_entry_cpp() : type(""), id(""), size(0), data(nullptr) {};
-	~EX_ace_entry_cpp() {
-		if (data != nullptr) { delete[] data; }
+	void Dispose() {
+		if (data != nullptr) {
+			free(data);
+		}
+	}
+};
+
+struct EX_ace_buffer_cpp {
+	std::vector<EX_ace_entry_cpp> vector;
+
+	void Dispose() {
+		for (int i = vector.size(); i--;) {
+			vector[i].Dispose();
+		}
+	}
+
+	EX_ace_entry_cpp operator[](const int i) {
+		return vector[i];
 	}
 };
 
 typedef EX_ace_entry_cpp ace_entry;
-typedef std::vector<ace_entry> ace_buffer;
+typedef EX_ace_buffer_cpp ace_buffer;
 
 namespace ace {
 #else
@@ -98,7 +114,7 @@ EX_ACE_ENTRY EX_ACE_FUNCTION(LoadContent(const char* tag));
 
 #ifdef __cplusplus
 // Internal usage
-bool CheckFileFormat(const char* fmt, const std::filesystem::path& path, std::string* buffer);
+bool CheckFileFormat(const char* fmt, const std::filesystem::path& path, std::string& buffer);
 }
 #else
 void EX_ACE_FUNCTION(FreeEntry(ace_entry entry));

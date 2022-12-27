@@ -8,13 +8,30 @@
 #include <fstream>
 #include <zstd.h>
 #include <md5.h>
+#include <stdio.h>
+#include <assert.h>
 
 #define EX_ACE_MAX_ALLOC_CAPACITY 256 KB
 #define EX_ACE_STREAMSIZE_MAX LLONG_MAX
 #define EX_ACE_DELIM ','
 
+#define FUNCTION_ERROR(msg) msg "\n | Error occured in function " __FUNCTION__
+
+namespace fs = std::filesystem;
+
 static int s_default_level = 0;
-static const char* s_default_path = NULL;
+static std::string s_default_path;
+
+static void Log(std::string message) {
+	printf(message.c_str());
+	printf("\n");
+}
+
+template <typename... Values>
+static void Log(std::string message, Values... values) {
+	printf(message.c_str(), values...);
+	printf("\n");
+}
 
 struct ace_pointer {
 	std::string id;
@@ -102,24 +119,28 @@ class ace_iterator {
 		return buffer;
 	}
 
-	unsigned char* parse_compressed(unsigned int bytes, unsigned int out_bytes) {
-		char* read_buf = new char[bytes];
+	char* parse_bytes(unsigned int bytes) {
+		char* read_buf = (char*)malloc(bytes);
 		stream_.read(read_buf, bytes);
 		if (stream_.peek() == EX_ACE_DELIM) {
 			stream_.ignore();	// skip delim
 		}
 		pos_ = std::move(stream_.tellg());
-		unsigned char* out_buf = new unsigned char[out_bytes];
+		return read_buf;
+	}
+
+	unsigned char* parse_bytes(unsigned int bytes, unsigned int out_bytes) {
+		char* read_buf = parse_bytes(bytes);
+		unsigned char* out_buf = (unsigned char*)malloc(out_bytes);
 		ZSTD_decompress_usingDDict(dctx_, out_buf, out_bytes, read_buf, bytes, ddict_);
-		delete[] read_buf;
+		free(read_buf);
 		return out_buf;
 	}
 
 	ace_entry parse_entry() {
 		ace_entry entry = {};
-
 		if (!is_valid_) { 
-			puts("ERROR AT " __FUNCTION__ ": Not a .ace file! Seeking failed.");
+			Log(FUNCTION_ERROR("ERROR: ACE: Not a .ace file! Seeking failed."));
 			return entry;
 		}
 
@@ -128,7 +149,7 @@ class ace_iterator {
 		entry.type = std::move(parse_value());
 		entry.size = (unsigned int)std::stoi(std::move(parse_value()));
 		const int compressed_size = std::stoi(std::move(parse_value()));
-		entry.data = parse_compressed(compressed_size, entry.size);
+		entry.data = parse_bytes(compressed_size, entry.size);
 		return std::move(entry);
 	}
 
@@ -145,26 +166,56 @@ public:
 		return it;
 	}
 
-	ace_iterator* Prime(const char* path) {
+	ace_iterator* Prime() {
 		if (stream_.is_open()) {
 			stream_.close();
 		}
+
+		Log("LOG: ACE: Primed file information:");
+		
 		stream_.open(s_default_path, std::ios::in | std::ios::binary);
 		if (!stream_) {
-			puts("ERROR AT " __FUNCTION__ ": Could not open ace file!");
+			Log(FUNCTION_ERROR("ERROR: ACE: Could not open ace file! (%s)"), s_default_path.c_str());
 			return NULL;
 		}
+
+		Log(" | Path: %s", s_default_path.c_str());
+
 		std::locale x(std::locale::classic(), new ace_facet);	// does this leak?
 		stream_.imbue(x);
 		stream_.clear();
 		stream_.seekg(0, std::ios::beg);	// Seek the beggining just in case
-		if (std::stoi(std::move(parse_value())) == 0xACE) {
-			is_valid_ = true;
+		
+		int magicNumber = std::stoi(std::move(parse_value()));
+
+		Log(" | Magic #: %d", magicNumber);
+
+		is_valid_ = magicNumber == 0xACE ? true : false;
+
+		Log(" | Valid: %s", is_valid_ ? "true" : "false");
+		
+		if (!is_valid_) {
+			return NULL;
 		}
-		else return NULL;
-		skip_value(); // MD5 Hash
+
+		char* buffer = parse_bytes(16);
+		printf(" | Hash: 0x");
+		for (int i = 0; i < 16; i++) {
+			unsigned char x = (unsigned char)buffer[i];
+			if (x <= 0xF) {
+				printf("0%d", x);
+			}
+			else {
+				printf("%1X", x);
+			}
+		}
+		printf("\n");
+
 		const size_t dict_size = std::stoi(std::move(parse_value()));
-		char* dict = new char[dict_size];
+		
+		Log(" | Dict. size: %d", dict_size);
+
+		char* dict = (char*)malloc(dict_size * sizeof(char));
 		stream_.read((char*)dict, dict_size);
 		if (stream_.peek() == EX_ACE_DELIM) {
 			stream_.ignore();	// skip delim
@@ -172,15 +223,14 @@ public:
 		pos_ = std::move(stream_.tellg());
 		dctx_ = ZSTD_createDCtx();
 		ddict_ = ZSTD_createDDict(dict, dict_size);
-		delete[] dict;
+		free(dict);
 
 		return this;
 	}
 
 	ace_entry operator[](const char* entry_id) {
 		if (!is_valid_) {
-			puts("ERROR AT " __FUNCTION__ ": Not a .ace file! Seeking failed.");
-			return {};
+			Log(FUNCTION_ERROR("ERROR: ACE: Not an ace file! Seeking failed."));
 		}
 
 		std::streampos init_pos = pos_;
@@ -202,12 +252,13 @@ public:
 			if (ptr.id.size() == 0) {
 				break;
 			}
+
 			if (ptr.id == entry_id) {
 				return parse_entry();
 			}
 		}
 		// return to the beggining of search if not found
-		puts("ERROR AT " __FUNCTION__ ": Could not find entry.");
+		Log(FUNCTION_ERROR("ERROR: ACE: Could not find entry."));
 		seek_pos(init_pos);
 		return {};
 	}
@@ -238,27 +289,27 @@ static unsigned char* CheckDirectoryMD5(const char* path) {
 		}
 	}
 	MD5_Update(&ctx, md5_buffer.c_str(), md5_buffer.size());
-	unsigned char* ret = new unsigned char[16];
+	unsigned char* ret = (unsigned char*)malloc(16 * sizeof(unsigned char));
 	MD5_Final(ret, &ctx);
 	return ret;
 }
 
 namespace ace {
 	int Init(int default_compression_level, const char* res_path, const char* ace_path, const char* ace_name, bool scan_changes) {
-		if (s_default_path) { free((void*)s_default_path); }
+		Log("LOG: ACE: Initializing...");
 		s_default_level = default_compression_level;
-		std::string fmt_path = std::string(ace_path) + '/' + ace_name + ".ace";
-		s_default_path = (const char*)malloc(fmt_path.size() + 1);
-		if (s_default_path) { memcpy((void*)s_default_path, fmt_path.c_str(), fmt_path.size() + 1); }
+		fs::path fmt_path = fs::path(ace_path) / (std::string(ace_name) + ".ace");
+		s_default_path = fmt_path.string();
 		if (scan_changes) {
+			Log("LOG: ACE: Scanning for changes in resources folder (%s)", res_path);
 			unsigned char* md5_dir = CheckDirectoryMD5(res_path);
-			unsigned char* md5_ace = new unsigned char[16];
+			unsigned char* md5_ace = (unsigned char*)malloc(16 * sizeof(unsigned char));
 			memset(md5_ace, 0, 16);
 			{
 				std::fstream ace;
 				ace.open(fmt_path);
 				if (!ace) {
-					puts("ERROR AT " __FUNCTION__ ": Could not open ace file; Generating...");
+					Log("ERROR: ACE: Could not find ace file in destination; Generating... (%s)", ace_path);
 				}
 				else {
 					std::locale x(std::locale::classic(), new ace_facet);
@@ -266,7 +317,7 @@ namespace ace {
 					int OxACE = 0;
 					ace >> OxACE;	// 0xACE
 					if (OxACE != 0xACE) {
-						puts("ERROR AT " __FUNCTION__ ": Not a valid .ace file! Generating...");
+						Log("ERROR: ACE: Specified file is not a valid ace file! Generating... (%s)", fmt_path.string());
 					}
 					else {
 						if (ace.peek() == EX_ACE_DELIM) {
@@ -287,18 +338,22 @@ namespace ace {
 			if (!valid) { 
 				int success = Generate(default_compression_level, res_path, ace_path, ace_name);
 				if (!success) {
+					Log("ERROR: ACE: Could not generate ace file!");
 					return 0;
 				}
 			}
-			delete[] md5_ace;
-			delete[] md5_dir;
+			else {
+				Log("LOG: ACE: Ace file is up-to-date!");
+			}
+			free(md5_ace);
+			free(md5_dir);
 		}
-		ace_iterator::Get().Prime(fmt_path.c_str());
+		ace_iterator::Get().Prime();
 		return 1;
 	}
 
 	void Stop() {
-		free((void*)s_default_path);
+		// EMPTY
 	}
 
 	int Generate(int compression_level, const char* res_path, const char* output_path, const char* output_name) {
@@ -309,30 +364,30 @@ namespace ace {
 		std::string fmt_path = std::string(output_path) + '/' + output_name + ".ace";
 		out.open(std::move(fmt_path), std::ios::out | std::ios::trunc | std::ios::binary);
 		if (!out) {
-			puts("ERROR AT " __FUNCTION__ ": Could not create ace file!");
+			Log(FUNCTION_ERROR("ERROR: ACE: Could not create ace file!"));
 			return 0;
 		}
 		unsigned char* md5_dir = CheckDirectoryMD5(res_path);
 		(out << 0xACE << EX_ACE_DELIM).write((const char*)md5_dir, 16) << EX_ACE_DELIM;
-		delete[] md5_dir;
+		free(md5_dir);
 
 		// Create Dictionary
 		std::vector<std::string> paths;
 		float total_bytes = 0.0f;
 		for (auto& entry : fs::directory_iterator(res_path)) {
 			if (entry.is_regular_file() && entry.path().has_extension() &&
-				CheckFileFormat(ACE_SUPPORTED_IMG_FILEFORMATS, entry.path(), &ext) ||
-				CheckFileFormat(ACE_SUPPORTED_SND_FILEFORMATS, entry.path(), &ext) ||
-				CheckFileFormat(ACE_CUSTOM_FILEFORMATS, entry.path(), &ext)) {
+				CheckFileFormat(ACE_SUPPORTED_IMG_FILEFORMATS, entry.path(), ext) ||
+				CheckFileFormat(ACE_SUPPORTED_SND_FILEFORMATS, entry.path(), ext) ||
+				CheckFileFormat(ACE_CUSTOM_FILEFORMATS, entry.path(), ext)) {
 				paths.push_back(std::move(entry.path().string()));
 				total_bytes += entry.file_size();
 			}
 		}
 
-		char** c_paths = new char* [paths.size()];
+		char** c_paths = (char**)malloc(paths.size() * sizeof(char*));
 		for (size_t i = 0; i < paths.size(); i++) {
 			const size_t length = paths[i].size();
-			c_paths[i] = new char[length + 1]; // yeehaw to null terminators
+			c_paths[i] = (char*)malloc((length + 1) * sizeof(char)); // yeehaw to null terminators
 			memcpy((void*)c_paths[i], paths[i].c_str(), paths[i].size() + 1);
 		}
 		ZDICT_cover_params_t params;
@@ -351,28 +406,28 @@ namespace ace {
 		(out << dict.size << EX_ACE_DELIM).write((const char*)dict.data, dict.size) << EX_ACE_DELIM; // SKETCHY AF
 		free(dict.data);
 		for (size_t i = 0; i < paths.size(); i++) {
-			delete[] c_paths[i];
+			free(c_paths[i]);
 		}
-		delete[] c_paths;
+		free(c_paths);
 
 		// Read and compress.
 		ZSTD_CCtx* cctx = ZSTD_createCCtx();
 		for (auto& entry : fs::directory_iterator(res_path)) {
 			if (entry.is_regular_file() && entry.path().has_extension() &&
-				CheckFileFormat(ACE_SUPPORTED_IMG_FILEFORMATS, entry.path(), &ext) ||
-				CheckFileFormat(ACE_SUPPORTED_SND_FILEFORMATS, entry.path(), &ext) ||
-				CheckFileFormat(ACE_CUSTOM_FILEFORMATS, entry.path(), &ext)) {
+				CheckFileFormat(ACE_SUPPORTED_IMG_FILEFORMATS, entry.path(), ext) ||
+				CheckFileFormat(ACE_SUPPORTED_SND_FILEFORMATS, entry.path(), ext) ||
+				CheckFileFormat(ACE_CUSTOM_FILEFORMATS, entry.path(), ext)) {
 				in.open(entry.path(), std::ios::in | std::ios::binary);
 				if (!in) {
+					Log(FUNCTION_ERROR("ERROR: ACE: Could not open file! (\"%s\")"), entry.path().string().c_str());
 					std::string path = entry.path().string();
-					printf("ERROR AT " __FUNCTION__ ": Could not open file! (\"%s\")\n", path.c_str());
 					return 0;
 				}
 				std::filebuf* buf = in.rdbuf();							   // PAIN
 				const size_t src_size = buf->pubseekoff(0, in.end, in.in); // PAIN
 				buf->pubseekpos(0, in.in);								   // PAIN
 
-				char* dst_buf = new char[EX_ACE_MAX_ALLOC_CAPACITY];
+				char* dst_buf = (char*)malloc(EX_ACE_MAX_ALLOC_CAPACITY * sizeof(char));
 				int dst_size = 0;
 				{
 					char* src_buf = (char*)malloc(src_size);
@@ -383,7 +438,7 @@ namespace ace {
 				out << entry.path().stem() << EX_ACE_DELIM << ext << EX_ACE_DELIM << src_size << EX_ACE_DELIM;
 				out << dst_size << EX_ACE_DELIM;
 				out.write(dst_buf, dst_size) << EX_ACE_DELIM;
-				delete[] dst_buf;
+				free(dst_buf);
 				in.close();
 			}
 		}
@@ -393,13 +448,11 @@ namespace ace {
 		return 1;
 	}
 
-	bool CheckFileFormat(const char* fmt, const std::filesystem::path& path, std::string* buffer) {
+	bool CheckFileFormat(const char* fmt, const std::filesystem::path& path, std::string& buffer) {
 		std::stringstream ss(fmt);
-		std::string* ext = (buffer == NULL) ? new std::string() : buffer;
-		while (std::getline(ss, *ext, ',')) {
-			if (path.extension().string() == *ext) { return true; }
+		while (std::getline(ss, buffer, ',')) {
+			if (path.extension().string() == buffer) { return true; }
 		}
-		if (buffer == NULL) { delete ext; }
 		return false;
 	}
 
@@ -407,14 +460,13 @@ namespace ace {
 		ace_buffer elements;
 		for (size_t i = 0; i < count; i++) {
 			ace_entry e = ace_iterator::Get()[tags[i]];
-			if (e.id != "") { elements.push_back(e); }
+			if (e.id != "") { elements.vector.push_back(e); }
 		}
 		return elements;
 	}
 
 	ace_entry LoadContent(const char* tag) {
-		ace_entry e = ace_iterator::Get()[tag];
-		return e;
+		return ace_iterator::Get()[tag];
 	}
 }
 
@@ -434,9 +486,9 @@ extern "C" {
 	EX_ace_buffer_c Ace_LoadContentBuffer(const char* tags[], int count) {
 		ace_buffer ret = ace::LoadContentBuffer(tags, count);
 		EX_ace_buffer_c c_buf;
-		c_buf.buffer = (EX_ace_entry_c*)malloc(ret.size() * sizeof(EX_ace_entry_c));
-		c_buf.size = ret.size();
-		for (size_t i = 0; i < ret.size(); i++) {
+		c_buf.buffer = (EX_ace_entry_c*)malloc(ret.vector.size() * sizeof(EX_ace_entry_c));
+		c_buf.size = ret.vector.size();
+		for (size_t i = 0; i < ret.vector.size(); i++) {
 			ace_entry& entry = ret[i];
 			EX_ace_entry_c c_entry = {};
 			c_entry.id = (const char*)malloc((entry.id.size() + 1) * sizeof(char));
@@ -448,6 +500,7 @@ extern "C" {
 			c_entry.size = entry.size;
 			c_buf.buffer[i] = c_entry;
 		}
+		ret.Dispose();
 		return c_buf;
 	}
 
@@ -463,6 +516,7 @@ extern "C" {
 			memcpy((void*)c_entry.data, entry.data, entry.size);
 			c_entry.size = entry.size;
 		}
+		entry.Dispose();
 		return c_entry;
 	}
 
