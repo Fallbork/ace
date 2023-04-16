@@ -144,7 +144,8 @@ class ace_iterator {
 			return entry;
 		}
 
-		store_pointer(query_pointer());
+		ace_pointer ptr = query_pointer();
+		store_pointer(ptr);
 		entry.id = std::move(parse_value());
 		entry.type = std::move(parse_value());
 		entry.size = (unsigned int)std::stoi(std::move(parse_value()));
@@ -258,7 +259,7 @@ public:
 			}
 		}
 		// return to the beggining of search if not found
-		Log(FUNCTION_ERROR("ERROR: ACE: Could not find entry."));
+		Log(FUNCTION_ERROR("ERROR: ACE: Could not find entry \"%s\"."), entry_id);
 		seek_pos(init_pos);
 		return {};
 	}
@@ -489,7 +490,7 @@ extern "C" {
 		c_buf.buffer = (EX_ace_entry_c*)malloc(ret.vector.size() * sizeof(EX_ace_entry_c));
 		c_buf.size = ret.vector.size();
 		for (size_t i = 0; i < ret.vector.size(); i++) {
-			ace_entry& entry = ret[i];
+			ace_entry entry = ret[i];
 			EX_ace_entry_c c_entry = {};
 			c_entry.id = (const char*)malloc((entry.id.size() + 1) * sizeof(char));
 			memcpy((void*)c_entry.id, entry.id.c_str(), (entry.id.size() + 1) * sizeof(char));
